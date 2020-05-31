@@ -76,11 +76,17 @@ BuschJaegerApPlatform.prototype.transformAccessories = function(actuators) {
             continue;
         }
 
-        let [accessoryClass, requireWhitelisted] = this.getAccessoryClass(actuator['deviceId']);
+        let [accessoryClass, requireWhitelisted] = this.getAccessoryClass(actuator['deviceId'], actuator['channels']);
         if (accessoryClass) {
             let service = require(path.join(__dirname, 'lib', accessoryClass));
             if (Object.keys(actuator['channels']).length > 0) {
                 for (let channel in actuator['channels']) {
+
+                    if (actuator['deviceId'] === '2039' && channel === 'ch000D') {
+                        this.log(`Ignoring channel 'ch000D' for wireless-devices.`);
+                        continue;
+                    }
+
                     if ('blacklist' in mapping && mapping['blacklist'].includes(channel)) {
                         this.log('Ignoring blacklisted accessory ' + actuator['typeName'] + ' with serial ' + serial + ' and channel ' + channel);
                         continue;
@@ -132,7 +138,7 @@ BuschJaegerApPlatform.prototype.transformAccessories = function(actuators) {
 
 }
 
-BuschJaegerApPlatform.prototype.getAccessoryClass = function(deviceId) {
+BuschJaegerApPlatform.prototype.getAccessoryClass = function(deviceId, channels) {
     switch (deviceId) {
         case '1004':
             return ['BuschJaegerThermostatAccessory', false];
@@ -167,7 +173,32 @@ BuschJaegerApPlatform.prototype.getAccessoryClass = function(deviceId) {
             return ['BuschJaegerGarageDoorAccessory', false];
         case 'binarysensor':
             return ['BuschJaegerBinarySensorAccessory', false];
+        case '2039':
+            return this.getAccessoryClassByFunctionId(channels)
 
+        default:
+            return [null, false];
+    }
+}
+
+/**
+ * Returns accessory class for wireless-devices (deviceId == '2039')
+ */
+BuschJaegerApPlatform.prototype.getAccessoryClassByFunctionId = function(channels) {
+    let functionId
+    let channelNames = Array.from(Object.keys(channels) || {}) || []
+    channelNames = channelNames.filter(channelname => channelname !== 'ch000D')
+    if (channelNames && channelNames.length) {
+        functionId = channels[channelNames[0]]["functionId"]
+    }
+
+    switch (functionId) {
+        case '7':
+            return ['BuschJaegerSchaltAktorAccessory', false];
+        case '12':
+            return ['BuschJaegerDimmAktorAccessory', false];
+        case '61':
+            return ['BuschJaegerJalousieAccessory', false];
         default:
             return [null, false];
     }
